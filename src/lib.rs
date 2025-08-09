@@ -1,4 +1,4 @@
-// src/lib.rs (最终胜利版 v3.1 修正)
+// src/lib.rs (最终胜利版 v4.0 - 语法终结)
 
 use std::sync::atomic::{AtomicI32, Ordering};
 use windows::{
@@ -6,7 +6,8 @@ use windows::{
     Win32::{
         Foundation::*,
         System::Com::*,
-        System::LibraryLoader::*, // <-- 现在这个导入会生效了
+        System::LibraryLoader::*,
+        System::SystemServices::*, // <--- 【关键修正2】添加了这一行
         UI::Shell::*,
     },
 };
@@ -14,7 +15,6 @@ use windows::{
 static INSTANCE_COUNT: AtomicI32 = AtomicI32::new(0);
 static mut MODULE_HANDLE: HINSTANCE = HINSTANCE(0);
 
-// 【关键修正2】我们告诉宏，它只负责 IShellIconOverlayIdentifier。IUnknown 我们自己手动实现，以解决冲突。
 #[implement(IShellIconOverlayIdentifier)]
 struct MyOverlayIdentifier {
     ref_count: AtomicI32,
@@ -35,7 +35,8 @@ impl Drop for MyOverlayIdentifier {
     }
 }
 
-impl IUnknown_Impl for MyOverlayIdentifier {
+// 【关键修正3】所有 ..._Impl 都去掉了下划线
+impl IUnknownImpl for MyOverlayIdentifier {
     fn QueryInterface(&self, riid: *const GUID, ppvobject: *mut *mut std::ffi::c_void) -> HRESULT {
         unsafe {
             if *riid == IUnknown::IID || *riid == IShellIconOverlayIdentifier::IID {
@@ -65,7 +66,7 @@ impl IUnknown_Impl for MyOverlayIdentifier {
 }
 
 #[allow(non_snake_case)]
-impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
+impl IShellIconOverlayIdentifierImpl for MyOverlayIdentifier {
     fn GetOverlayInfo(
         &self,
         _pwsziconfile: PWSTR,
@@ -90,7 +91,7 @@ impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
 #[implement(IClassFactory)]
 struct ClassFactory;
 
-impl IClassFactory_Impl for ClassFactory {
+impl IClassFactoryImpl for ClassFactory {
     fn CreateInstance(
         &self,
         _punkouter: &Option<IUnknown>,
