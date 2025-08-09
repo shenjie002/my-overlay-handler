@@ -1,40 +1,87 @@
-// src/lib.rs (最终胜利 v2.0 - 编译器指导版)
+// src/lib.rs (最终胜利 v3.0 - 正确的COM模式)
 
-// 【关键修正1】根据编译器的提示，HRESULT 从 core 导入
+use std::sync::atomic::{AtomicI32, Ordering};
 use windows::{
-    core::{implement, Result, PCWSTR, PWSTR, HRESULT},
+    core::*,
     Win32::{
-        Foundation::S_FALSE,
-        UI::Shell::IShellIconOverlayIdentifier,
+        Foundation::*,
+        System::Com::*,
+        System::LibraryLoader::*,
+        UI::Shell::*,
     },
 };
 
-#[implement(IShellIconOverlayIdentifier)]
-struct MyOverlayIdentifier;
+// 全局实例计数器和模块句柄
+static INSTANCE_COUNT: AtomicI32 = AtomicI32::new(0);
+static mut MODULE_HANDLE: HINSTANCE = HINSTANCE(0);
 
-// 【关键修正2】根据编译器的提示，这是一个普通的 impl 块，
-// 不再是 impl IShellIconOverlayIdentifier for MyOverlayIdentifier
+// 【关键修正1】通过同时实现 IUnknown，我们强制 #[implement] 宏使用经典的 COM 模式，而不是 WinRT 模式。
+#[implement(IShellIconOverlayIdentifier, IUnknown)]
+struct MyOverlayIdentifier {
+    ref_count: AtomicI32,
+}
+
 impl MyOverlayIdentifier {
-    // GetOverlayInfo, GetPriority, IsMemberOf 都是 IShellIconOverlayIdentifier 接口的方法。
-    // #[implement] 宏会自动识别它们并将它们正确地实现为 COM 接口的一部分。
-    #[allow(non_snake_case)]
+    pub fn new() -> Self {
+        INSTANCE_COUNT.fetch_add(1, Ordering::SeqCst);
+        Self {
+            ref_count: AtomicI32::new(1),
+        }
+    }
+}
+
+impl Drop for MyOverlayIdentifier {
+    fn drop(&mut self) {
+        INSTANCE_COUNT.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+// IUnknown 的实现
+impl IUnknown_Impl for MyOverlayIdentifier {
+    fn QueryInterface(&self, riid: *const GUID, ppvobject: *mut *mut std::ffi::c_void) -> HRESULT {
+        unsafe {
+            if *riid == IUnknown::IID || *riid == IShellIconOverlayIdentifier::IID {
+                *ppvobject = self as *const _ as *mut _;
+                self.AddRef();
+                S_OK
+            } else {
+                *ppvobject = std::ptr::null_mut();
+                E_NOINTERFACE
+            }
+        }
+    }
+
+    fn AddRef(&self) -> u32 {
+        self.ref_count.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
+    fn Release(&self) -> u32 {
+        let count = self.ref_count.fetch_sub(1, Ordering::Relaxed) - 1;
+        if count == 0 {
+            // 使用 Box 在堆上管理对象，当 Box 离开作用域时，drop 会被调用
+            unsafe {
+                let _ = Box::from_raw(self as *const _ as *mut Self);
+            }
+        }
+        count
+    }
+}
+
+// IShellIconOverlayIdentifier 的实现
+#[allow(non_snake_case)]
+impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
     fn GetOverlayInfo(
         &self,
         _pwsziconfile: PWSTR,
         _cchmax: i32,
         _pindex: *mut i32,
         _pdwflags: *mut u32,
-    ) -> Result<()> {
-        Ok(())
+    ) -> HRESULT {
+        S_OK
     }
 
-    #[allow(non_snake_case)]
-    fn GetPriority(&self, _ppriority: *mut i32) -> Result<()> {
-        Ok(())
+    fn GetPriority(&self, _ppriority: *mut i32) -> HRESULT {
+        S_OK
     }
-
-    #[allow(non_snake_case)]
-    fn IsMemberOf(&self, _pwszpath: &PCWSTR, _dwattrib: u32) -> HRESULT {
-        S_FALSE
-    }
-}
+    
+    fn IsMemberOf(&self, _pwszpath: &PCWSTR, _dwattrib: u32) -> HRESULT
