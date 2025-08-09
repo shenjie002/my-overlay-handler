@@ -1,5 +1,4 @@
-# Cargo.toml (最终升级版)
-
+# Cargo.toml (最终重置版)
 [package]
 name = "my_overlay_handler"
 version = "0.1.0"
@@ -12,14 +11,9 @@ crate-type = ["cdylib"]
 winres = "0.1"
 
 [dependencies]
-# 我们升级到一个更新、更稳定的版本，并且在新版本中，'macros' 功能被明确地加回来了！
+# 我们使用一个稳定的版本，并且只开启最核心的功能，排除一切干扰
 windows = { version = "0.58.0", features = [
-    "macros",
     "Win32_Foundation",
     "Win32_System_Com",
-    "Win32_System_LibraryLoader",
     "Win32_UI_Shell",
-    "Win32_System_Registry",
-    "Win32_System_SystemServices",
-    "Win32_System_Ole",
 ]}
