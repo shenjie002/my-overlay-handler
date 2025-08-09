@@ -6,7 +6,6 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 
-# 【关键修正】这个部分在上一版被我错误地遗漏了
 [build-dependencies]
 winres = "0.1"
 
