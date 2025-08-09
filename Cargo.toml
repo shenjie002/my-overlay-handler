@@ -4,13 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-# 告诉 Rust 编译器，我们要构建一个 C 语言兼容的动态链接库 (DLL)
 crate-type = ["cdylib"]
 
+[build-dependencies]
+winres = "0.1"
+
 [dependencies]
-# 引入强大的 windows-rs 库，让我们可以轻松调用 Windows API
+# 我们依然需要 windows 库来提供所有的 Windows API 函数和类型
 windows = { version = "0.52.0", features = [
-    
     "Win32_Foundation",
     "Win32_System_Com",
     "Win32_System_LibraryLoader",
@@ -18,8 +19,10 @@ windows = { version = "0.52.0", features = [
     "Win32_System_Registry",
     "Win32_System_SystemServices",
     "Win32_System_Ole",
-    "Win32_Globalization",
-] }
+]}
+
+# 【关键修正】我们在这里显式地、直接地依赖 windows-core 库，并强制开启它的 "macros" 功能
+windows-core = { version = "0.52.0", features = ["macros"] }
 
 # 这是构建时需要的依赖，用来处理 Windows 资源文件（比如图标）
 [build-dependencies]
