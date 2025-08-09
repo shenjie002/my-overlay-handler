@@ -1,4 +1,4 @@
-// src/lib.rs (最终胜利 v3.0 - 正确的COM模式)
+// src/lib.rs (最终胜利 v3.1 - 语法修正)
 
 use std::sync::atomic::{AtomicI32, Ordering};
 use windows::{
@@ -11,11 +11,9 @@ use windows::{
     },
 };
 
-// 全局实例计数器和模块句柄
 static INSTANCE_COUNT: AtomicI32 = AtomicI32::new(0);
 static mut MODULE_HANDLE: HINSTANCE = HINSTANCE(0);
 
-// 【关键修正1】通过同时实现 IUnknown，我们强制 #[implement] 宏使用经典的 COM 模式，而不是 WinRT 模式。
 #[implement(IShellIconOverlayIdentifier, IUnknown)]
 struct MyOverlayIdentifier {
     ref_count: AtomicI32,
@@ -36,7 +34,6 @@ impl Drop for MyOverlayIdentifier {
     }
 }
 
-// IUnknown 的实现
 impl IUnknown_Impl for MyOverlayIdentifier {
     fn QueryInterface(&self, riid: *const GUID, ppvobject: *mut *mut std::ffi::c_void) -> HRESULT {
         unsafe {
@@ -58,7 +55,6 @@ impl IUnknown_Impl for MyOverlayIdentifier {
     fn Release(&self) -> u32 {
         let count = self.ref_count.fetch_sub(1, Ordering::Relaxed) - 1;
         if count == 0 {
-            // 使用 Box 在堆上管理对象，当 Box 离开作用域时，drop 会被调用
             unsafe {
                 let _ = Box::from_raw(self as *const _ as *mut Self);
             }
@@ -67,7 +63,6 @@ impl IUnknown_Impl for MyOverlayIdentifier {
     }
 }
 
-// IShellIconOverlayIdentifier 的实现
 #[allow(non_snake_case)]
 impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
     fn GetOverlayInfo(
@@ -84,4 +79,64 @@ impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
         S_OK
     }
     
-    fn IsMemberOf(&self, _pwszpath: &PCWSTR, _dwattrib: u32) -> HRESULT
+    fn IsMemberOf(&self, _pwszpath: &PCWSTR, _dwattrib: u32) -> HRESULT {
+        S_FALSE
+    }
+} // <--- 就是这里，之前少了这一个括号！
+
+// ==== COM Boilerplate: Class Factory and Exports ====
+
+#[implement(IClassFactory)]
+struct ClassFactory;
+
+impl IClassFactory_Impl for ClassFactory {
+    fn CreateInstance(
+        &self,
+        _punkouter: &Option<IUnknown>,
+        riid: *const GUID,
+        ppvobject: *mut *mut std::ffi::c_void,
+    ) -> HRESULT {
+        let overlay = Box::into_raw(Box::new(MyOverlayIdentifier::new()));
+        unsafe { (*overlay).QueryInterface(riid, ppvobject) }
+    }
+
+    fn LockServer(&self, _flock: BOOL) -> HRESULT {
+        S_OK
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "stdcall" fn DllGetClassObject(
+    _rclsid: *const GUID,
+    riid: *const GUID,
+    ppv: *mut *mut std::ffi::c_void,
+) -> HRESULT {
+    let factory: IClassFactory = ClassFactory.into();
+    unsafe { factory.query(riid, ppv) }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "stdcall" fn DllCanUnloadNow() -> HRESULT {
+    if INSTANCE_COUNT.load(Ordering::SeqCst) == 0 {
+        S_OK
+    } else {
+        S_FALSE
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "stdcall" fn DllMain(
+    hinst_dll: HINSTANCE,
+    fdw_reason: u32,
+    _lpv_reserved: *const std::ffi::c_void,
+) -> bool {
+    if fdw_reason == DLL_PROCESS_ATTACH {
+        unsafe {
+            MODULE_HANDLE = hinst_dll;
+        }
+    }
+    true
+}
