@@ -1,7 +1,0 @@
-# 为本机（Host）aarch64 配置链接器 (用于编译构建脚本)
-[target.aarch64-pc-windows-msvc]
-linker = "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostarm64\\arm64\\link.exe"
-
-# 为目标机（Target）x86_64 配置链接器 (用于编译你的DLL)
-[target.x86_64-pc-windows-msvc]
-linker = "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostarm64\\x64\\link.exe"
