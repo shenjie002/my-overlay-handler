@@ -1,4 +1,4 @@
-# Cargo.toml (最终胜利版)
+# Cargo.toml (最终胜利版 v2)
 
 [package]
 name = "my_overlay_handler"
@@ -16,7 +16,7 @@ windows = { version = "0.58.0", features = [
     "Win32_Foundation",
     "Win32_System_Com",
     "Win32_UI_Shell",
+    "Win32_System_LibraryLoader", # <-- 【关键修正1】把它加回来
 ]}
 
-# 【关键修正1】我们把 windows-core 加回来，这是 implement! 宏所需要的
 windows-core = "0.58.0"

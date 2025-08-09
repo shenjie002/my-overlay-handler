@@ -1,4 +1,4 @@
-// src/lib.rs (最终胜利 v3.1 - 语法修正)
+// src/lib.rs (最终胜利版 v3.1 修正)
 
 use std::sync::atomic::{AtomicI32, Ordering};
 use windows::{
@@ -6,7 +6,7 @@ use windows::{
     Win32::{
         Foundation::*,
         System::Com::*,
-        System::LibraryLoader::*,
+        System::LibraryLoader::*, // <-- 现在这个导入会生效了
         UI::Shell::*,
     },
 };
@@ -14,7 +14,8 @@ use windows::{
 static INSTANCE_COUNT: AtomicI32 = AtomicI32::new(0);
 static mut MODULE_HANDLE: HINSTANCE = HINSTANCE(0);
 
-#[implement(IShellIconOverlayIdentifier, IUnknown)]
+// 【关键修正2】我们告诉宏，它只负责 IShellIconOverlayIdentifier。IUnknown 我们自己手动实现，以解决冲突。
+#[implement(IShellIconOverlayIdentifier)]
 struct MyOverlayIdentifier {
     ref_count: AtomicI32,
 }
@@ -82,7 +83,7 @@ impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
     fn IsMemberOf(&self, _pwszpath: &PCWSTR, _dwattrib: u32) -> HRESULT {
         S_FALSE
     }
-} // <--- 就是这里，之前少了这一个括号！
+}
 
 // ==== COM Boilerplate: Class Factory and Exports ====
 
