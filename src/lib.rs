@@ -1,10 +1,10 @@
-// src/lib.rs (最终胜利版)
+// src/lib.rs (最终胜利 v2.0 - 编译器指导版)
 
-// 【关键修正2】我们使用 0.58.0 版本的新语法和新的 use 路径
+// 【关键修正1】根据编译器的提示，HRESULT 从 core 导入
 use windows::{
-    core::{implement, Result, PCWSTR, PWSTR},
+    core::{implement, Result, PCWSTR, PWSTR, HRESULT},
     Win32::{
-        Foundation::{HRESULT, S_FALSE},
+        Foundation::S_FALSE,
         UI::Shell::IShellIconOverlayIdentifier,
     },
 };
@@ -12,8 +12,12 @@ use windows::{
 #[implement(IShellIconOverlayIdentifier)]
 struct MyOverlayIdentifier;
 
-// 注意：在新版本中，我们直接实现 IShellIconOverlayIdentifier，不再有 "_Impl" 后缀
-impl IShellIconOverlayIdentifier for MyOverlayIdentifier {
+// 【关键修正2】根据编译器的提示，这是一个普通的 impl 块，
+// 不再是 impl IShellIconOverlayIdentifier for MyOverlayIdentifier
+impl MyOverlayIdentifier {
+    // GetOverlayInfo, GetPriority, IsMemberOf 都是 IShellIconOverlayIdentifier 接口的方法。
+    // #[implement] 宏会自动识别它们并将它们正确地实现为 COM 接口的一部分。
+    #[allow(non_snake_case)]
     fn GetOverlayInfo(
         &self,
         _pwsziconfile: PWSTR,
@@ -21,17 +25,16 @@ impl IShellIconOverlayIdentifier for MyOverlayIdentifier {
         _pindex: *mut i32,
         _pdwflags: *mut u32,
     ) -> Result<()> {
-        // 在最小化版本里，我们什么都不做，直接返回成功
         Ok(())
     }
 
+    #[allow(non_snake_case)]
     fn GetPriority(&self, _ppriority: *mut i32) -> Result<()> {
         Ok(())
     }
 
-    // 注意：在新版本中，IsMemberOf 的参数不再需要 InParam 包装
+    #[allow(non_snake_case)]
     fn IsMemberOf(&self, _pwszpath: &PCWSTR, _dwattrib: u32) -> HRESULT {
-        // 在最小化版本里，我们什么都不做，直接返回 S_FALSE
         S_FALSE
     }
 }
