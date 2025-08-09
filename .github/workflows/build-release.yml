@@ -1,37 +1,31 @@
 name: Build Release DLL
 
-# 当代码被推送到 main 分支时，自动运行
 on:
   push:
     branches: [ "main" ]
-  # 也允许在 Actions 页面手动触发
   workflow_dispatch:
 
 jobs:
   build:
-    # 使用微软官方维护的最新版 Windows 服务器
     runs-on: windows-latest
 
     steps:
-    # 步骤1: 下载你的代码到服务器上
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 步骤2: 在服务器上安装 Rust (MSVC 版本)
     - name: Install Rust toolchain (MSVC)
-      run: rustup default stable-msvc
+      run: |
+        rustup toolchain install stable-x86_64-pc-windows-msvc
+        rustup default stable-x86_64-pc-windows-msvc
 
-    # 步骤3: 添加 x86_64 编译目标
-    - name: Add x86_64 target
+    - name: Add x86_64 target (just in case)
       run: rustup target add x86_64-pc-windows-msvc
 
-    # 步骤4: 运行我们熟悉的编译命令
-    - name: Build for x86_64
-      run: cargo build --release --target=x86_64-pc-windows-msvc
+    - name: Build for x86_64 (release)
+      run: cargo build --release
 
-    # 步骤5: 将编译好的 DLL 文件打包，以便我们下载
-    - name: Upload DLL as artifact
+    - name: Upload DLL artifact
       uses: actions/upload-artifact@v4
       with:
-        name: my-overlay-handler-dll-x86_64
-        path: target/x86_64-pc-windows-msvc/release/my_overlay_handler.dll
+        name: my-overlay-handler-dll
+        path: target\\release\\my_overlay_handler.dll

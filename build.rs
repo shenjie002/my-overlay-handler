@@ -1,10 +1,11 @@
 fn main() {
-    // 只有在为 Windows 系统编译时才运行
-    if std::env::var("CARGO_CFG_TARGET_OS").unwrap() == "windows" {
+    // 仅 Windows 编译时才处理资源
+    if std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default() == "windows" {
         let mut res = winres::WindowsResource::new();
-        // 指向我们刚刚创建的资源描述文件
+        // 如果你想内嵌 icon.ico 到 DLL，使用 icon.rc 指向它
         res.set_resource_file("icon.rc");
-        // 编译资源！
-        res.compile().unwrap();
+        if let Err(e) = res.compile() {
+            panic!("Failed to compile resources: {}", e);
+        }
     }
 }
