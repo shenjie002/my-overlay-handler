@@ -1,4 +1,4 @@
-// src/lib.rs (最终胜利版 v4.0 - 语法终结)
+// src/lib.rs (最终胜利 v5.0 - 编译器最终形态)
 
 use std::sync::atomic::{AtomicI32, Ordering};
 use windows::{
@@ -7,7 +7,7 @@ use windows::{
         Foundation::*,
         System::Com::*,
         System::LibraryLoader::*,
-        System::SystemServices::*, // <--- 【关键修正2】添加了这一行
+        System::SystemServices::*,
         UI::Shell::*,
     },
 };
@@ -15,58 +15,18 @@ use windows::{
 static INSTANCE_COUNT: AtomicI32 = AtomicI32::new(0);
 static mut MODULE_HANDLE: HINSTANCE = HINSTANCE(0);
 
+// ==================================================================
+// 核心 COM 对象实现
+// ==================================================================
+
+// 我们只为我们自己的接口使用 implement! 宏，IUnknown 会被自动处理。
 #[implement(IShellIconOverlayIdentifier)]
-struct MyOverlayIdentifier {
-    ref_count: AtomicI32,
-}
+struct MyOverlayIdentifier;
 
-impl MyOverlayIdentifier {
-    pub fn new() -> Self {
-        INSTANCE_COUNT.fetch_add(1, Ordering::SeqCst);
-        Self {
-            ref_count: AtomicI32::new(1),
-        }
-    }
-}
-
-impl Drop for MyOverlayIdentifier {
-    fn drop(&mut self) {
-        INSTANCE_COUNT.fetch_sub(1, Ordering::SeqCst);
-    }
-}
-
-// 【关键修正3】所有 ..._Impl 都去掉了下划线
-impl IUnknownImpl for MyOverlayIdentifier {
-    fn QueryInterface(&self, riid: *const GUID, ppvobject: *mut *mut std::ffi::c_void) -> HRESULT {
-        unsafe {
-            if *riid == IUnknown::IID || *riid == IShellIconOverlayIdentifier::IID {
-                *ppvobject = self as *const _ as *mut _;
-                self.AddRef();
-                S_OK
-            } else {
-                *ppvobject = std::ptr::null_mut();
-                E_NOINTERFACE
-            }
-        }
-    }
-
-    fn AddRef(&self) -> u32 {
-        self.ref_count.fetch_add(1, Ordering::Relaxed) + 1
-    }
-
-    fn Release(&self) -> u32 {
-        let count = self.ref_count.fetch_sub(1, Ordering::Relaxed) - 1;
-        if count == 0 {
-            unsafe {
-                let _ = Box::from_raw(self as *const _ as *mut Self);
-            }
-        }
-        count
-    }
-}
-
+// 我们实现由宏生成的、没有下划线的 ...Impl trait
 #[allow(non_snake_case)]
 impl IShellIconOverlayIdentifierImpl for MyOverlayIdentifier {
+    // 方法签名现在返回 HRESULT
     fn GetOverlayInfo(
         &self,
         _pwsziconfile: PWSTR,
@@ -78,7 +38,8 @@ impl IShellIconOverlayIdentifierImpl for MyOverlayIdentifier {
     }
 
     fn GetPriority(&self, _ppriority: *mut i32) -> HRESULT {
-        S_OK
+        // 返回 E_NOTIMPL 表示使用默认优先级
+        E_NOTIMPL
     }
     
     fn IsMemberOf(&self, _pwszpath: &PCWSTR, _dwattrib: u32) -> HRESULT {
@@ -86,7 +47,9 @@ impl IShellIconOverlayIdentifierImpl for MyOverlayIdentifier {
     }
 }
 
-// ==== COM Boilerplate: Class Factory and Exports ====
+// ==================================================================
+// COM 工厂和导出函数 (这部分不需要改动)
+// ==================================================================
 
 #[implement(IClassFactory)]
 struct ClassFactory;
@@ -98,8 +61,9 @@ impl IClassFactoryImpl for ClassFactory {
         riid: *const GUID,
         ppvobject: *mut *mut std::ffi::c_void,
     ) -> HRESULT {
-        let overlay = Box::into_raw(Box::new(MyOverlayIdentifier::new()));
-        unsafe { (*overlay).QueryInterface(riid, ppvobject) }
+        // 由 implement! 宏生成的对象可以直接创建
+        let overlay: IShellIconOverlayIdentifier = MyOverlayIdentifier.into();
+        unsafe { overlay.query(riid, ppvobject) }
     }
 
     fn LockServer(&self, _flock: BOOL) -> HRESULT {
@@ -121,11 +85,8 @@ pub extern "stdcall" fn DllGetClassObject(
 #[no_mangle]
 #[allow(non_snake_case)]
 pub extern "stdcall" fn DllCanUnloadNow() -> HRESULT {
-    if INSTANCE_COUNT.load(Ordering::SeqCst) == 0 {
-        S_OK
-    } else {
-        S_FALSE
-    }
+    // 简化生命周期管理，总是允许卸载
+    S_OK
 }
 
 #[no_mangle]
