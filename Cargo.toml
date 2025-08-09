@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 
+# 【关键修正】这个部分在上一版被我错误地遗漏了
+[build-dependencies]
+winres = "0.1"
+
 [dependencies]
 windows = { version = "0.58.0", features = [
     "Win32_Foundation",
@@ -13,4 +17,6 @@ windows = { version = "0.58.0", features = [
     "Win32_System_SystemServices",
     "Win32_System_LibraryLoader",
     "Win32_UI_Shell",
+    "Win32_System_Registry",
+    "Win32_System_Ole",
 ]}
