@@ -1,20 +1,19 @@
-// src/lib.rs (最终重置版)
+// src/lib.rs (最终胜利版)
 
-// 我们只导入最核心的模块和宏
+// 【关键修正2】我们使用 0.58.0 版本的新语法和新的 use 路径
 use windows::{
-    core::{implement, InParam, Result, GUID, HRESULT, PCWSTR, PWSTR},
+    core::{implement, Result, PCWSTR, PWSTR},
     Win32::{
-        Foundation::{S_FALSE, S_OK},
-        UI::Shell::{IShellIconOverlayIdentifier, IShellIconOverlayIdentifier_Impl},
+        Foundation::{HRESULT, S_FALSE},
+        UI::Shell::IShellIconOverlayIdentifier,
     },
 };
 
-// 一个绝对最小化的 COM 对象，只为测试编译
 #[implement(IShellIconOverlayIdentifier)]
 struct MyOverlayIdentifier;
 
-#[allow(non_snake_case)]
-impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
+// 注意：在新版本中，我们直接实现 IShellIconOverlayIdentifier，不再有 "_Impl" 后缀
+impl IShellIconOverlayIdentifier for MyOverlayIdentifier {
     fn GetOverlayInfo(
         &self,
         _pwsziconfile: PWSTR,
@@ -22,6 +21,7 @@ impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
         _pindex: *mut i32,
         _pdwflags: *mut u32,
     ) -> Result<()> {
+        // 在最小化版本里，我们什么都不做，直接返回成功
         Ok(())
     }
 
@@ -29,9 +29,9 @@ impl IShellIconOverlayIdentifier_Impl for MyOverlayIdentifier {
         Ok(())
     }
 
-    // IsMemberOf 是唯一必须实现的
-    fn IsMemberOf(&self, _pwszpath: &InParam<PCWSTR>, _dwattrib: u32) -> HRESULT {
-        // 我们什么都不做，直接返回 S_FALSE
+    // 注意：在新版本中，IsMemberOf 的参数不再需要 InParam 包装
+    fn IsMemberOf(&self, _pwszpath: &PCWSTR, _dwattrib: u32) -> HRESULT {
+        // 在最小化版本里，我们什么都不做，直接返回 S_FALSE
         S_FALSE
     }
 }
